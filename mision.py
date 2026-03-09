@@ -3,10 +3,12 @@ from discord.ext import commands, tasks
 import datetime
 import pytz
 import random
+import os  # <--- ESTO ES LO NUEVO QUE TIENES QUE AGREGAR
 
 # --- CONFIGURACIÓN DE IDENTIDAD ---
-TOKEN = 'MTQ3ODQ2NDA0MDAwNjA2MjEyNA.GM24GF.HIqN4P5mhfQvNmQKAAv0e9aRcKNCjrjn-pvGU4'
-ID_CANAL_MISIONES = 1478505943711875112  # ID del canal #misiones-diarias
+TOKEN = os.getenv('DISCORD_TOKEN') # <--- BORRA EL TOKEN LARGO Y PON ESTO
+ID_CANAL_MISIONES = 1478505943711875112
+# ... el resto del código sigue igual
 ID_CANAL_TURNOS = 1473131173088723134    # ID del canal #registro-de-servicio
 ZONA_HORARIA = pytz.timezone('America/Santiago')
 
