@@ -11,7 +11,7 @@ ID_CANAL_MISIONES = 1478505943711875112
 ID_CANAL_PRIVADO = 1487316210336137287 
 ZONA_HORARIA = pytz.timezone('America/Santiago')
 
-# --- CATÁLOGO DE MISIONES ---
+# --- CATÁLOGO DE MISIONES (Lunes a Domingo) ---
 misiones_semanales = {
     0: {"t": "🛂 LUNES: 'Papeles en Regla'", "d": "Fiscalización técnica en Peajes.", "r": "Solicitar documentos y verificar patente.", "e": "Foto frente al vehículo."},
     1: {"t": "🏢 MARTES: 'Identidad de Bloque'", "d": "Saturación en callejones de LS.", "r": "Oficiales a pie. Consulta de antecedentes.", "e": "Foto del registro en el bloque."},
@@ -22,90 +22,83 @@ misiones_semanales = {
     6: {"t": "🌄 DOMINGO: 'Vigilancia Rural'", "d": "Patrullaje en Paleto o Sandy Shores.", "r": "Recorrer zonas alejadas y gasolineras.", "e": "Foto en la zona norte."}
 }
 
-# --- VISTA PERSISTENTE REFORZADA ---
+# --- VISTA DE ASISTENCIA PERSISTENTE ---
 class MenuAsistencia(discord.ui.View):
     def _init_(self):
-        # Forzamos timeout=None explícitamente al inicializar
-        super()._init_(timeout=None) 
+        super()._init_(timeout=None) # Los botones no caducan nunca
 
-    # Definimos los botones como propiedades de la clase para asegurar su persistencia
-    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar_cdc_v5")
-    async def entrar_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="cdc_vFINAL_entrar")
+    async def entrar(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id in turnos_activos:
-            await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
-        else:
-            turnos_activos[interaction.user.id] = datetime.datetime.now(ZONA_HORARIA)
-            await interaction.response.send_message(f"🟢 *10-39* registrado correctamente.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
+        
+        turnos_activos[interaction.user.id] = datetime.datetime.now(ZONA_HORARIA)
+        await interaction.response.send_message("🟢 *10-39* registrado correctamente.", ephemeral=True)
 
-    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir_cdc_v5")
-    async def salir_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="cdc_vFINAL_salir")
+    async def salir(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in turnos_activos:
-            await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
-        else:
-            inicio = turnos_activos.pop(interaction.user.id)
-            fin = datetime.datetime.now(ZONA_HORARIA)
-            dif = fin - inicio
-            horas, segundos = divmod(dif.total_seconds(), 3600)
-            minutos = (segundos // 60)
+            return await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
+        
+        inicio = turnos_activos.pop(interaction.user.id)
+        fin = datetime.datetime.now(ZONA_HORARIA)
+        dif = fin - inicio
+        horas, segundos = divmod(dif.total_seconds(), 3600)
+        minutos = (segundos // 60)
 
-            canal_privado = bot.get_channel(ID_CANAL_PRIVADO)
-            if canal_privado:
-                embed = discord.Embed(title="📄 REPORTE DE PATRULLAJE", color=discord.Color.green())
-                embed.add_field(name="Oficial", value=interaction.user.display_name, inline=True)
-                embed.add_field(name="Tiempo Total", value=f"{int(horas)}h {int(minutos)}m", inline=True)
-                embed.add_field(name="Inicio", value=inicio.strftime('%H:%M'), inline=True)
-                embed.add_field(name="Fin", value=fin.strftime('%H:%M'), inline=True)
-                embed.set_footer(text=f"Fecha: {fin.strftime('%d/%m/%Y')}")
-                await canal_privado.send(embed=embed)
+        canal_privado = bot.get_channel(ID_CANAL_PRIVADO)
+        if canal_privado:
+            embed = discord.Embed(title="📄 REPORTE DE PATRULLAJE", color=discord.Color.green())
+            embed.add_field(name="Oficial", value=interaction.user.display_name, inline=True)
+            embed.add_field(name="Tiempo Total", value=f"{int(horas)}h {int(minutos)}m", inline=True)
+            embed.add_field(name="Inicio", value=inicio.strftime('%H:%M'), inline=True)
+            embed.add_field(name="Fin", value=fin.strftime('%H:%M'), inline=True)
+            embed.set_footer(text=f"Fecha: {fin.strftime('%d/%m/%Y')}")
+            await canal_privado.send(embed=embed)
 
-            await interaction.response.send_message(f"🔴 *10-10* registrado. Reporte enviado.", ephemeral=True)
+        await interaction.response.send_message("🔴 *10-10* registrado. Reporte enviado a Jefatura.", ephemeral=True)
 
-# --- BOT CONFIGURACIÓN ---
-intents = discord.Intents.default()
-intents.message_content = True
-
-# Definimos una clase personalizada para el Bot para manejar on_ready de forma más segura
+# --- CLASE DEL BOT ---
 class CDCBot(commands.Bot):
     def _init_(self):
+        intents = discord.Intents.default()
+        intents.message_content = True
         super()._init_(command_prefix='!', intents=intents)
 
-    # Reemplazamos el decorador @bot.event on_ready por este método
-    async def on_ready(self):
-        # Instanciamos la vista una sola vez
-        self.asistencia_view = MenuAsistencia()
-        # Registramos la vista para que sea persistente tras reinicios
-        self.add_view(self.asistencia_view)
-        
-        if not enviar_mision_diaria.is_running():
-            enviar_mision_diaria.start()
-        print(f'✅ Sistema CDC Online y Persistente (v5)')
+    async def setup_hook(self):
+        # Registra la vista para que Discord la reconozca siempre
+        self.add_view(MenuAsistencia())
 
-# Instanciamos el bot usando nuestra clase personalizada
+    async def on_ready(self):
+        print(f'✅ Sistema CDC Online: {self.user}')
+        if not mision_diaria.is_running():
+            mision_diaria.start()
+
 bot = CDCBot()
 turnos_activos = {}
 
 # --- TAREA DE MISIONES ---
 @tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=ZONA_HORARIA))
-async def enviar_mision_diaria():
+async def mision_diaria():
     canal = bot.get_channel(ID_CANAL_MISIONES)
     if canal:
         dia = datetime.datetime.now(ZONA_HORARIA).weekday()
         m = misiones_semanales.get(dia)
-        if m:
-            folio = random.randint(1000, 9999)
-            embed = discord.Embed(title=f"📅 MISIÓN DIARIA: {m['t']}", color=discord.Color.green())
-            embed.add_field(name="🔢 Folio", value=f"#CDC-{folio}", inline=True)
-            embed.add_field(name="🎯 Objetivo", value=m['d'], inline=False)
-            embed.add_field(name="🎭 Dinámica", value=m['r'], inline=False)
-            embed.add_field(name="📸 Evidencia", value=m['e'], inline=False)
-            embed.set_footer(text=f"CDC Operaciones | {datetime.datetime.now(ZONA_HORARIA).strftime('%d/%m/%Y')}")
-            await canal.send(embed=embed)
+        folio = random.randint(1000, 9999)
+        
+        embed = discord.Embed(title=f"📅 MISIÓN DIARIA: {m['t']}", color=discord.Color.green())
+        embed.add_field(name="🔢 Folio", value=f"#CDC-{folio}", inline=True)
+        embed.add_field(name="🎯 Objetivo", value=m['d'], inline=False)
+        embed.add_field(name="🎭 Dinámica", value=m['r'], inline=False)
+        embed.add_field(name="📸 Evidencia", value=m['e'], inline=False)
+        embed.set_footer(text=f"CDC Operaciones | {datetime.datetime.now(ZONA_HORARIA).strftime('%d/%m/%Y')}")
+        await canal.send(embed=embed)
 
 # --- COMANDOS ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def panel(ctx):
-    # Al crear el panel, usamos la vista que ya está registrada en el bot
-    await ctx.send(embed=discord.Embed(title="🚓 CONTROL DE ASISTENCIA CDC", description="Presiona los botones para marcar tu estado.", color=discord.Color.green()), view=bot.asistencia_view)
+    embed = discord.Embed(title="🚓 CONTROL DE ASISTENCIA CDC", description="Presiona los botones para marcar tu estado.", color=discord.Color.green())
+    await ctx.send(embed=embed, view=MenuAsistencia())
 
 bot.run(TOKEN)
