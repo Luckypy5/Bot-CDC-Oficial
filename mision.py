@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands, tasks
 import datetime
 import pytz
-import random
 import os
 
 # --- CONFIGURACIÓN ---
@@ -11,42 +10,27 @@ ID_CANAL_MISIONES = 1478505943711875112
 ID_CANAL_PRIVADO = 1487316210336137287 
 ZONA_HORARIA = pytz.timezone('America/Santiago')
 
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-turnos_activos = {}
-
-# --- CATÁLOGO DE MISIONES ---
-misiones_semanales = {
-    0: {"t": "🛂 Operación: 'Papeles en Regla'", "d": "Fiscalización técnica en Peajes o Accesos.", "r": "Solicitar documentos y verificar patente.", "e": "Foto frente al vehículo."},
-    1: {"t": "🏢 Operación: 'Identidad de Bloque'", "d": "Saturación en callejones o bloques de LS.", "r": "Oficiales a pie. Consulta de antecedentes.", "e": "Foto del registro en el bloque."},
-    2: {"t": "🏍️ Operación: 'Binomio Los Santos'", "d": "Patrullaje motorizado (Sanchez o BMW).", "r": "Vigilancia en ciudad o cerros.", "e": "Foto de las motos juntas."},
-    3: {"t": "🚛 Operación: 'Ruta Segura'", "d": "Escolta oficial a Camioneros.", "r": "Ubicar camionero y abrir paso con balizas.", "e": "Foto de la patrulla escoltando."},
-    4: {"t": "🦅 Operación: 'Día de Especialista'", "d": "Libre Disposición (GOPE, Prefectura, SIP).", "r": "Ramas especiales en servicio.", "e": "Foto con uniforme o vehículo especial."}
-}
-
-# --- SISTEMA DE ASISTENCIA ---
+# --- CLASE DE ASISTENCIA PERSISTENTE ---
 class MenuAsistencia(discord.ui.View):
     def _init_(self):
+        # El timeout=None hace que los botones no caduquen NUNCA
         super()._init_(timeout=None)
 
-    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar_v2")
+    # El custom_id debe ser ÚNICO y no cambiar nunca
+    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="cdc_btn_entrar_v3")
     async def entrar_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        if user_id in turnos_activos:
+        if interaction.user.id in turnos_activos:
             await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
         else:
-            turnos_activos[user_id] = datetime.datetime.now(ZONA_HORARIA)
+            turnos_activos[interaction.user.id] = datetime.datetime.now(ZONA_HORARIA)
             await interaction.response.send_message(f"🟢 *10-39* registrado correctamente.", ephemeral=True)
 
-    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir_v2")
+    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="cdc_btn_salir_v3")
     async def salir_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        if user_id not in turnos_activos:
+        if interaction.user.id not in turnos_activos:
             await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
         else:
-            inicio = turnos_activos.pop(user_id)
+            inicio = turnos_activos.pop(interaction.user.id)
             fin = datetime.datetime.now(ZONA_HORARIA)
             dif = fin - inicio
             horas, segundos = divmod(dif.total_seconds(), 3600)
@@ -62,17 +46,32 @@ class MenuAsistencia(discord.ui.View):
                 embed.set_footer(text=f"Fecha: {fin.strftime('%d/%m/%Y')}")
                 await canal_privado.send(embed=embed)
 
-            await interaction.response.send_message(f"🔴 *10-10* registrado. Tiempo enviado a Jefatura.", ephemeral=True)
+            await interaction.response.send_message(f"🔴 *10-10* registrado. Reporte enviado.", ephemeral=True)
+
+# --- CONFIGURACIÓN DEL BOT ---
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# NOTA: turnos_activos se limpia si el bot se apaga. 
+# Si quieres que el patrullaje sobreviva a reinicios, necesitaremos una DB.
+turnos_activos = {}
+
+@bot.event
+async def on_ready():
+    # REGISTRO DE VISTA PERSISTENTE
+    # Esto es lo que evita el error rojo que viste en el log
+    bot.add_view(MenuAsistencia())
+    print(f'✅ Sistema CDC Online y Persistente')
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def panel(ctx):
-    embed = discord.Embed(title="🚓 CONTROL DE ASISTENCIA CDC", description="Presiona los botones para marcar tu estado.", color=discord.Color.green())
+    embed = discord.Embed(
+        title="🚓 CONTROL DE ASISTENCIA CDC", 
+        description="Presiona los botones para marcar tu estado.", 
+        color=discord.Color.green()
+    )
     await ctx.send(embed=embed, view=MenuAsistencia())
-
-@bot.event
-async def on_ready():
-    print(f'✅ Sistema CDC Online')
-    bot.add_view(MenuAsistencia())
 
 bot.run(TOKEN)
