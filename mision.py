@@ -8,7 +8,7 @@ import os
 # --- CONFIGURACIÓN DE IDS ---
 TOKEN = os.getenv('DISCORD_TOKEN')
 ID_CANAL_MISIONES = 1478505943711875112
-ID_CANAL_PRIVADO = 1487316210336137287  # <--- CAMBIA ESTE POR EL ID DE TU CANAL DE JEFES
+ID_CANAL_PRIVADO = 1487316210336137287 
 ZONA_HORARIA = pytz.timezone('America/Santiago')
 
 # --- CONFIGURACIÓN DEL BOT ---
@@ -27,13 +27,13 @@ misiones_semanales = {
     4: {"t": "🦅 Operación: 'Día de Especialista'", "d": "Libre Disposición.", "r": "Ramas: GOPE (Tahoe), Prefectura Aérea (Helicóptero), o Inteligencia (OS7/OS9/SIP).", "e": "Foto con uniforme o vehículo especial."}
 }
 
-# --- SISTEMA DE ASISTENCIA (BOTONES) ---
+# --- SISTEMA DE ASISTENCIA (BOTONES CORREGIDOS) ---
 class MenuAsistencia(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar")
-    async def entrar_callback(self, interaction: discord.Interaction):
+    async def entrar_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id in turnos_activos:
             await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
         else:
@@ -41,7 +41,7 @@ class MenuAsistencia(discord.ui.View):
             await interaction.response.send_message(f"🟢 **10-39** registrado correctamente.", ephemeral=True)
 
     @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir")
-    async def salir_callback(self, interaction: discord.Interaction):
+    async def salir_callback(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id not in turnos_activos:
             await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
         else:
@@ -51,7 +51,6 @@ class MenuAsistencia(discord.ui.View):
             horas, segundos = divmod(dif.total_seconds(), 3600)
             minutos = (segundos // 60)
 
-            # Reporte al canal de los Altos Mandos
             canal_privado = bot.get_channel(ID_CANAL_PRIVADO)
             if canal_privado:
                 embed = discord.Embed(title="📄 REPORTE DE PATRULLAJE", color=discord.Color.green())
@@ -62,16 +61,14 @@ class MenuAsistencia(discord.ui.View):
                 embed.set_footer(text=f"Fecha: {fin.strftime('%d/%m/%Y')}")
                 await canal_privado.send(embed=embed)
 
-            await interaction.response.send_message(f"🔴 **10-10** registrado. Tiempo total enviado a Jefatura: {int(horas)}h {int(minutos)}m.", ephemeral=True)
+            await interaction.response.send_message(f"🔴 **10-10** registrado. Tiempo enviado a Jefatura: {int(horas)}h {int(minutos)}m.", ephemeral=True)
 
-# --- TAREA PROGRAMADA (00:00 AM) ---
+# --- TAREA PROGRAMADA ---
 @tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=ZONA_HORARIA))
 async def enviar_mision_diaria():
     canal = bot.get_channel(ID_CANAL_MISIONES)
     if canal:
-        # Lunes=0, Martes=1, etc.
         dia = datetime.datetime.now(ZONA_HORARIA).weekday()
-        # Si es Sábado/Domingo (5/6) usa la misión 0 por defecto o alguna otra
         m = misiones_semanales.get(dia, misiones_semanales[0])
         folio = random.randint(1000, 9999)
         
@@ -87,10 +84,9 @@ async def enviar_mision_diaria():
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def panel(ctx):
-    """Genera el panel de botones una sola vez"""
     embed = discord.Embed(
         title="🚓 CONTROL DE ASISTENCIA CDC", 
-        description="Presiona los botones para marcar tu estado de servicio.\n\n🟢 **Entrar:** Inicia tu contador.\n🔴 **Salir:** Finaliza y envía reporte de horas.", 
+        description="Presiona los botones para marcar tu estado de servicio.", 
         color=discord.Color.green()
     )
     await ctx.send(embed=embed, view=MenuAsistencia())
@@ -98,7 +94,6 @@ async def panel(ctx):
 @bot.event
 async def on_ready():
     print(f'✅ Sistema CDC Online')
-    # Esto mantiene los botones activos aunque el bot se reinicie
     bot.add_view(MenuAsistencia())
     if not enviar_mision_diaria.is_running():
         enviar_mision_diaria.start()
