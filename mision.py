@@ -26,26 +26,27 @@ misiones_semanales = {
     4: {"t": "🦅 Operación: 'Día de Especialista'", "d": "Libre Disposición (GOPE, Prefectura, SIP).", "r": "Ramas especiales en servicio.", "e": "Foto con uniforme o vehículo especial."}
 }
 
-# --- SISTEMA DE ASISTENCIA (ORDEN CORREGIDO) ---
+# --- SISTEMA DE ASISTENCIA ---
 class MenuAsistencia(discord.ui.View):
     def _init_(self):
         super()._init_(timeout=None)
 
-    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar")
-    async def entrar_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Primero va 'interaction' y luego 'button'
-        if interaction.user.id in turnos_activos:
+    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar_v2")
+    async def entrar_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id in turnos_activos:
             await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
         else:
-            turnos_activos[interaction.user.id] = datetime.datetime.now(ZONA_HORARIA)
+            turnos_activos[user_id] = datetime.datetime.now(ZONA_HORARIA)
             await interaction.response.send_message(f"🟢 *10-39* registrado correctamente.", ephemeral=True)
 
-    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir")
-    async def salir_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id not in turnos_activos:
+    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir_v2")
+    async def salir_servicio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in turnos_activos:
             await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
         else:
-            inicio = turnos_activos.pop(interaction.user.id)
+            inicio = turnos_activos.pop(user_id)
             fin = datetime.datetime.now(ZONA_HORARIA)
             dif = fin - inicio
             horas, segundos = divmod(dif.total_seconds(), 3600)
