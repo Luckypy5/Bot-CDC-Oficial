@@ -13,7 +13,7 @@ ZONA_HORARIA = pytz.timezone('America/Santiago')
 # --- MISIONES INSTITUCIONALES ---
 misiones_dict = {
     0: "LUNES: 'Papeles en Regla' - Fiscalización técnica en Peajes. Revisar documentación y patentes.",
-    1: "MARTES: 'Identidad de Bloque' - Saturación en callejones de LS. Control de identidad preventivo.",
+    1: "MARTES: 'Identidad de Bloque' - Saturación en callejones. Control de identidad preventivo.",
     2: "MIÉRCOLES: 'Binomio Los Santos' - Patrullaje motorizado en binomios por el sector céntrico.",
     3: "JUEVES: 'Ruta Segura' - Escolta oficial a camiones de carga en Ruta 5.",
     4: "VIERNES: 'Día de Especialista' - Operativo especial (Ramas especializadas GOPE/SIP).",
@@ -29,7 +29,7 @@ turnos_activos = {}
 
 @bot.event
 async def on_ready():
-    print(f'✅ Sistema Final CDC Online | Bitácora y Misiones Restauradas.')
+    print(f'✅ Sistema Carabineros de Chile Online | Franco, todo listo.')
     if not enviar_mision_diaria.is_running():
         enviar_mision_diaria.start()
 
@@ -42,10 +42,11 @@ async def enviar_mision_diaria():
         except: pass
         dia = datetime.datetime.now(ZONA_HORARIA).weekday()
         
-        embed_mision = discord.Embed(title="📅 HOJA DE RUTA DIARIA - CDC", description=f"**Orden de Servicio:** {misiones_dict[dia]}", color=discord.Color.blue())
+        embed_mision = discord.Embed(title="📅 HOJA DE RUTA DIARIA - CARABINEROS DE CHILE", description=f"**Orden de Servicio:** {misiones_dict[dia]}", color=discord.Color.from_rgb(0, 104, 71))
         await canal.send(embed=embed_mision)
 
-        embed_bono = discord.Embed(title="💰 BONO POR ACTIVIDAD SEMANAL", description="Se les recuerda que cumplir **3 misiones semanales** otorga un bono por actividad.", color=discord.Color.gold())
+        embed_bono = discord.Embed(title="💰 BONO POR ACTIVIDAD SEMANAL", description="Cumplir **3 misiones semanales** otorga un bono por actividad en su liquidación.", color=discord.Color.gold())
+        embed_bono.set_footer(text="Carabineros de Chile | Jefatura Administrativa")
         await canal.send(embed=embed_bono)
 
 # --- COMANDO MISIÓN MANUAL ---
@@ -54,7 +55,8 @@ async def mision(ctx):
     try: await ctx.message.delete()
     except: pass
     dia = datetime.datetime.now(ZONA_HORARIA).weekday()
-    embed = discord.Embed(title="📋 CONSULTA DE ORDEN DE SERVICIO", description=f"**Misión para hoy:** {misiones_dict[dia]}", color=discord.Color.blue())
+    embed = discord.Embed(title="📋 CONSULTA DE ORDEN DE SERVICIO", description=f"**Misión para hoy:** {misiones_dict[dia]}", color=discord.Color.from_rgb(0, 104, 71))
+    embed.set_footer(text="Carabineros de Chile")
     await ctx.send(embed=embed, delete_after=60)
 
 # --- COMANDO INICIO (10-39) ---
@@ -68,13 +70,13 @@ async def inicio(ctx):
     ahora = datetime.datetime.now(ZONA_HORARIA)
     turnos_activos[ctx.author.id] = ahora
     embed = discord.Embed(
-        title="🟢 INICIO DE SERVICIO - CDC", 
+        title="🟢 INICIO DE SERVICIO - CARABINEROS DE CHILE", 
         description=f"El oficial **{ctx.author.mention}** ha iniciado sus funciones de patrullaje preventivo.", 
         color=discord.Color.from_rgb(0, 104, 71)
     )
-    embed.add_field(name="🕒 Código Radial", value="**10-39**", inline=True)
-    embed.add_field(name="⌚ Hora de Entrada", value=f"**{ahora.strftime('%H:%M:%S')}**", inline=True)
-    embed.set_footer(text="Cuerpo de Defensa y Control | Orden y Seguridad")
+    embed.add_field(name="⚪ Código Radial", value="**10-39**", inline=True)
+    embed.add_field(name="⚪ Hora de Entrada", value=f"**{ahora.strftime('%H:%M:%S')}**", inline=True)
+    embed.set_footer(text="Carabineros de Chile | Orden y Seguridad")
     await ctx.send(embed=embed)
 
 # --- COMANDO TERMINO (10-10) ---
@@ -92,12 +94,13 @@ async def termino(ctx):
     m, _ = divmod(r, 60)
 
     embed_fin = discord.Embed(
-        title="🔴 TÉRMINO DE SERVICIO - CDC", 
+        title="🔴 TÉRMINO DE SERVICIO - CARABINEROS DE CHILE", 
         description=f"El oficial **{ctx.author.mention}** ha finalizado sus funciones y se retira de la frecuencia.", 
         color=discord.Color.from_rgb(180, 0, 0)
     )
-    embed_fin.add_field(name="🕒 Código Radial", value="**10-10**", inline=True)
+    embed_fin.add_field(name="⚪ Código Radial", value="**10-10**", inline=True)
     embed_fin.add_field(name="⏳ Tiempo de Patrullaje", value=f"**{h}h {m}m**", inline=True)
+    embed_fin.set_footer(text="Carabineros de Chile | Servicio Finalizado")
     await ctx.send(embed=embed_fin)
 
     canal = bot.get_channel(ID_CANAL_PRIVADO)
@@ -108,7 +111,7 @@ async def termino(ctx):
         reporte.add_field(name="📥 Ingreso (10-39)", value=f"**{inicio_t.strftime('%H:%M:%S')}**", inline=True)
         reporte.add_field(name="📤 Egreso (10-10)", value=f"**{ahora.strftime('%H:%M:%S')}**", inline=True)
         reporte.add_field(name="⏳ Jornada Total", value=f"**{h}h {m}m**", inline=True)
-        reporte.set_footer(text=f"Fecha: {ahora.strftime('%d/%m/%Y')} | Archivo Jefatura")
+        reporte.set_footer(text=f"Fecha: {ahora.strftime('%d/%m/%Y')} | Archivo Jefatura Carabineros de Chile")
         await canal.send(embed=reporte)
 
 # --- COMANDO ACTIVOS ---
@@ -117,9 +120,10 @@ async def activos(ctx):
     try: await ctx.message.delete()
     except: pass
     if not turnos_activos:
-        return await ctx.send("🚫 Actualmente no se registran unidades en servicio.", delete_after=10)
+        return await ctx.send("🚫 No se registran unidades en frecuencia.", delete_after=10)
     lista = "\n".join([f"• <@{uid}> (Desde las {t.strftime('%H:%M')})" for uid, t in turnos_activos.items()])
     embed = discord.Embed(title="🚔 UNIDADES EN FRECUENCIA (10-39)", description=lista, color=discord.Color.gold())
+    embed.set_footer(text="Carabineros de Chile")
     await ctx.send(embed=embed, delete_after=45)
 
 # --- COMANDO PARAR (REGISTRO DE FALTA) ---
@@ -143,12 +147,12 @@ async def parar(ctx, miembro: discord.Member):
 
         canal = bot.get_channel(ID_CANAL_PRIVADO)
         if canal:
-            reporte = discord.Embed(title="🚨 REGISTRO DE FALTA - JEFATURA", color=discord.Color.red())
+            reporte = discord.Embed(title="🚨 REGISTRO DE FALTA - CARABINEROS DE CHILE", color=discord.Color.red())
             reporte.set_thumbnail(url=miembro.display_avatar.url)
             reporte.add_field(name="👮 Oficial Sancionado", value=miembro.mention, inline=False)
             reporte.add_field(name="🛡️ Aplicado por", value=ctx.author.mention, inline=True)
             reporte.add_field(name="⏳ Tiempo Acumulado", value=f"{h}h {m}m", inline=True)
-            reporte.set_footer(text=f"Fecha: {ahora.strftime('%d/%m/%Y')} | Falta Administrativa")
+            reporte.set_footer(text=f"Fecha: {ahora.strftime('%d/%m/%Y')} | Falta Administrativa Carabineros")
             await canal.send(embed=reporte)
 
 bot.run(TOKEN)
