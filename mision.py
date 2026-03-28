@@ -3,101 +3,103 @@ from discord.ext import commands, tasks
 import datetime
 import pytz
 import random
-import os  # <--- ESTO ES LO NUEVO QUE TIENES QUE AGREGAR
+import os
 
-# --- CONFIGURACIÓN DE IDENTIDAD ---
-TOKEN = os.getenv('DISCORD_TOKEN') # <--- BORRA EL TOKEN LARGO Y PON ESTO
+# --- CONFIGURACIÓN DE IDS ---
+TOKEN = os.getenv('DISCORD_TOKEN')
 ID_CANAL_MISIONES = 1478505943711875112
-# ... el resto del código sigue igual
-ID_CANAL_TURNOS = 1473131173088723134    # ID del canal #registro-de-servicio
+ID_CANAL_PRIVADO = 1487316210336137287  # <--- CAMBIA ESTE POR EL ID DE TU CANAL DE JEFES
 ZONA_HORARIA = pytz.timezone('America/Santiago')
 
+# --- CONFIGURACIÓN DEL BOT ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# --- BASE DE DATOS TEMPORAL DE TURNOS ---
-turnos_activos = {} # Guarda el ID del usuario y su hora de entrada
+turnos_activos = {}
 
-# --- CATÁLOGO DE MISIONES OFICIALES ---
+# --- CATÁLOGO DE MISIONES (COLOR VERDE) ---
 misiones_semanales = {
-    0: {"t": "Operación: 'Código 1' (Robo a Tienda) 🚨", "d": "Atender 3 llamados de robo a tiendas (24/7, licorerías).", "e": "Foto de patrulla o sospechoso bajo custodia."},
-    1: {"t": "Operación: 'Saturación en los Bloques' (Barrio SERVIU) 🏘️", "d": "Patrullaje preventivo y realizar al menos 2 controles de identidad.", "e": "Foto de oficiales patrullando a pie o fiscalizando."},
-    2: {"t": "Operación: 'Escolta Ruta 5' (Solo Camioneros) 🚛", "d": "Ubicar a un Camionero y ofrecerle protección de ruta.", "e": "Foto de la unidad junto al camión en carretera."},
-    3: {"t": "Operación: 'Control de Peaje / Aduana' 🛣️", "d": "Punto de control en peaje principal. Revisar documentos y maletero.", "e": "Foto de vehículo civil siendo fiscalizado."},
-    4: {"t": "Operación: 'Patrullaje de Infantería' (A Pie/Bici) 🚲🚶‍♂️", "d": "Recorrer plazas o paseos peatonales e interactuar con civiles.", "e": "Foto del oficial con civiles o en zona peatonal."},
-    5: {"t": "Operación: 'Unidad Motorizada (Binomio)' 🏍️", "d": "Patrullaje en pareja (2 motos) por tráfico o cerros.", "e": "Foto de las dos motos CDC juntas en operativo."},
-    6: {"t": "Operación: 'Despliegue de Soberanía' (Convoy La Moneda) 🏛️", "d": "Viaje grupal (mínimo 3 unidades) hasta el Palacio de La Moneda.", "e": "Foto grupal frente al palacio."}
+    0: {"t": "🛂 Operación: 'Papeles en Regla'", "d": "Fiscalización técnica en Peajes o Accesos.", "r": "Solicitar documentos y verificar patente. Si no hay: Multa Tabla.", "e": "Foto frente al vehículo."},
+    1: {"t": "🏢 Operación: 'Identidad de Bloque'", "d": "Saturación en callejones o bloques de LS.", "r": "Oficiales a pie. Consulta de antecedentes o búsqueda de ilícitos.", "e": "Foto del registro en el bloque."},
+    2: {"t": "🏍️ Operación: 'Binomio Los Santos'", "d": "Patrullaje motorizado (Sanchez o BMW).", "r": "Vigilancia en ciudad o cerros. Realizar 1 control vehicular completo.", "e": "Foto de las motos juntas."},
+    3: {"t": "🚛 Operación: 'Ruta Segura'", "d": "Escolta oficial a Camioneros.", "r": "Ubicar camionero y abrir paso con balizas hasta el destino.", "e": "Foto de la patrulla escoltando al camión."},
+    4: {"t": "🦅 Operación: 'Día de Especialista'", "d": "Libre Disposición.", "r": "Ramas: GOPE (Tahoe), Prefectura Aérea (Helicóptero), o Inteligencia (OS7/OS9/SIP).", "e": "Foto con uniforme o vehículo especial."}
 }
 
-# --- COMANDOS DE RELOJ DE SERVICIO ---
-@bot.command()
-async def entrar(ctx):
-    """Registra el inicio de turno (10-39)"""
-    if ctx.channel.id != ID_CANAL_TURNOS:
-        return await ctx.send(f"⚠️ Este comando solo funciona en el canal de registros.")
+# --- SISTEMA DE ASISTENCIA (BOTONES) ---
+class MenuAsistencia(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
 
-    if ctx.author.id in turnos_activos:
-        await ctx.send(f"⚠️ {ctx.author.mention}, ya te encuentras en servicio activo.")
-    else:
-        # Guarda la hora exacta de entrada
-        turnos_activos[ctx.author.id] = datetime.datetime.now(ZONA_HORARIA)
-        await ctx.send(f"🟢 *10-39 (Inicio de Turno)*\nOficial: {ctx.author.mention}\nHora: {datetime.datetime.now(ZONA_HORARIA).strftime('%H:%M')} hrs.\n¡Buen servicio!")
+    @discord.ui.button(label="Entrar Servicio (10-39)", style=discord.ButtonStyle.green, custom_id="btn_entrar")
+    async def entrar_callback(self, interaction: discord.Interaction):
+        if interaction.user.id in turnos_activos:
+            await interaction.response.send_message("⚠️ Ya tienes un turno activo.", ephemeral=True)
+        else:
+            turnos_activos[interaction.user.id] = datetime.datetime.now(ZONA_HORARIA)
+            await interaction.response.send_message(f"🟢 **10-39** registrado correctamente.", ephemeral=True)
 
-@bot.command()
-async def salir(ctx):
-    """Registra el fin de turno (10-10) y calcula el tiempo"""
-    if ctx.channel.id != ID_CANAL_TURNOS:
-        return await ctx.send(f"⚠️ Este comando solo funciona en el canal de registros.")
+    @discord.ui.button(label="Salir Servicio (10-10)", style=discord.ButtonStyle.red, custom_id="btn_salir")
+    async def salir_callback(self, interaction: discord.Interaction):
+        if interaction.user.id not in turnos_activos:
+            await interaction.response.send_message("❌ No has iniciado turno.", ephemeral=True)
+        else:
+            inicio = turnos_activos.pop(interaction.user.id)
+            fin = datetime.datetime.now(ZONA_HORARIA)
+            dif = fin - inicio
+            horas, segundos = divmod(dif.total_seconds(), 3600)
+            minutos = (segundos // 60)
 
-    if ctx.author.id not in turnos_activos:
-        await ctx.send(f"❌ {ctx.author.mention}, no has iniciado turno (10-39) todavía.")
-    else:
-        inicio = turnos_activos.pop(ctx.author.id)
-        fin = datetime.datetime.now(ZONA_HORARIA)
-        
-        # Cálculo de tiempo patrullado
-        diferencia = fin - inicio
-        horas, segundos = divmod(diferencia.total_seconds(), 3600)
-        minutos = (segundos // 60)
-        
-        embed = discord.Embed(title="🔴 10-10 (Fin de Turno)", color=discord.Color.red())
-        embed.add_field(name="Oficial", value=ctx.author.mention, inline=False)
-        embed.add_field(name="Tiempo en Servicio", value=f"{int(horas)} horas y {int(minutos)} minutos", inline=False)
-        embed.set_footer(text="Registro de Actividad CDC")
-        await ctx.send(embed=embed)
+            # Reporte al canal de los Altos Mandos
+            canal_privado = bot.get_channel(ID_CANAL_PRIVADO)
+            if canal_privado:
+                embed = discord.Embed(title="📄 REPORTE DE PATRULLAJE", color=discord.Color.green())
+                embed.add_field(name="Oficial", value=interaction.user.display_name, inline=True)
+                embed.add_field(name="Tiempo Total", value=f"{int(horas)}h {int(minutos)}m", inline=True)
+                embed.add_field(name="Inicio", value=inicio.strftime('%H:%M'), inline=True)
+                embed.add_field(name="Fin", value=fin.strftime('%H:%M'), inline=True)
+                embed.set_footer(text=f"Fecha: {fin.strftime('%d/%m/%Y')}")
+                await canal_privado.send(embed=embed)
 
-# --- COMANDO EXTRA (LEY DE ALCOHOLES) ---
-@bot.command()
-async def extra(ctx):
-    """Misión aleatoria para operativos sorpresa"""
-    folio = random.randint(1000, 9999)
-    embed = discord.Embed(
-        title="🚨 OPERATIVO: Fiscalización de Tránsito",
-        description=f"*FOLIO: #EXT-{folio}\n\nTarea:* Buscar infractores (choques, veredas) y aplicar Ley de Alcoholes.\n*Objetivo:* Aplicar multa según Tabla Oficial.\n*Evidencia:* Captura de la multa en el chat.",
-        color=discord.Color.gold()
-    )
-    await ctx.send(embed=embed)
+            await interaction.response.send_message(f"🔴 **10-10** registrado. Tiempo total enviado a Jefatura: {int(horas)}h {int(minutos)}m.", ephemeral=True)
 
-# --- TAREA AUTOMÁTICA DE MISIONES ---
-@tasks.loop(hours=24)
+# --- TAREA PROGRAMADA (00:00 AM) ---
+@tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=ZONA_HORARIA))
 async def enviar_mision_diaria():
     canal = bot.get_channel(ID_CANAL_MISIONES)
     if canal:
-        dia_semana = datetime.datetime.now(ZONA_HORARIA).weekday()
-        m = misiones_semanales[dia_semana]
+        # Lunes=0, Martes=1, etc.
+        dia = datetime.datetime.now(ZONA_HORARIA).weekday()
+        # Si es Sábado/Domingo (5/6) usa la misión 0 por defecto o alguna otra
+        m = misiones_semanales.get(dia, misiones_semanales[0])
         folio = random.randint(1000, 9999)
         
-        embed = discord.Embed(title=m['t'], color=discord.Color.green())
-        embed.add_field(name="Folio de Registro", value=f"#CDC-{folio}", inline=False)
-        embed.add_field(name="Tarea", value=m['d'], inline=False)
-        embed.add_field(name="Evidencia", value=m['e'], inline=False)
-        embed.set_footer(text="Unidad de Operaciones CDC - 2026")
+        embed = discord.Embed(title=f"📅 MISIÓN DIARIA: {m['t']}", color=discord.Color.green())
+        embed.add_field(name="🔢 Folio", value=f"#CDC-{folio}", inline=True)
+        embed.add_field(name="🎯 Objetivo", value=m['d'], inline=False)
+        embed.add_field(name="🎭 Dinámica", value=m['r'], inline=False)
+        embed.add_field(name="📸 Evidencia", value=m['e'], inline=False)
+        embed.set_footer(text=f"CDC Operaciones | {datetime.datetime.now(ZONA_HORARIA).strftime('%d/%m/%Y')}")
         await canal.send(embed=embed)
+
+# --- COMANDOS ---
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def panel(ctx):
+    """Genera el panel de botones una sola vez"""
+    embed = discord.Embed(
+        title="🚓 CONTROL DE ASISTENCIA CDC", 
+        description="Presiona los botones para marcar tu estado de servicio.\n\n🟢 **Entrar:** Inicia tu contador.\n🔴 **Salir:** Finaliza y envía reporte de horas.", 
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed, view=MenuAsistencia())
 
 @bot.event
 async def on_ready():
-    print(f'✅ Sistema Centralizado CDC en línea: {bot.user}')
+    print(f'✅ Sistema CDC Online')
+    # Esto mantiene los botones activos aunque el bot se reinicie
+    bot.add_view(MenuAsistencia())
     if not enviar_mision_diaria.is_running():
         enviar_mision_diaria.start()
 
